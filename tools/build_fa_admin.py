@@ -240,7 +240,7 @@ def translate_html(html: str) -> str:
     return "".join(out)
 
 
-def strip_extra_ip_module(html: str) -> str:
+def inject_extra_ip_module(html): return html  # patched in admin/index.html directly
     html = re.sub(r'\s*<div class="module" id="extraIpModule">[\s\S]*?</div>\s*(?=<div class="module")', '\n', html, count=1)
     html = re.sub(r'\s*async function loadExtraIpsPanel[\s\S]*?function copyExtraShareUrl[\s\S]*?\}\s*', '\n', html)
     html = html.replace('loadExtraIpsPanel();\n                ', '')
@@ -250,7 +250,7 @@ def strip_extra_ip_module(html: str) -> str:
 
 def main():
     OUT_ADMIN.parent.mkdir(parents=True, exist_ok=True)
-    admin = strip_extra_ip_module(translate_html(SRC_ADMIN.read_text(encoding="utf-8-sig")))
+    admin = inject_extra_ip_module(translate_html(SRC_ADMIN.read_text(encoding="utf-8-sig")))
     login = translate_html(SRC_LOGIN.read_text(encoding="utf-8-sig"))
     OUT_ADMIN.write_text(admin, encoding="utf-8")
     OUT_LOGIN.write_text(login, encoding="utf-8")

@@ -1,8 +1,69 @@
-﻿const Version = '2026-05-17 18:52:03';
+const Version = '2026-05-17 18:52:03';
 let config_JSON, 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反代 = false, 我的SOCKS5账号 = '', parsedSocks5Address = {};
 let 缓存SOCKS5白名单 = null, 缓存反代IP, 缓存反代解析数组, 缓存反代数组索引 = 0, 启用反代兜底 = true, 调试日志打印 = false;
 let SOCKS5白名单 = ['*tapecontent.net', '*cloudatacdn.com', '*loadshare.org', '*cdn-centaurus.com', 'scholar.google.com'];
 const Pages静态页面 = 'https://edt-pages.github.io';
+
+const EXTRA_IP_KV = 'EXTRA_IP.txt';
+const EXTRA_IP_MANUAL_KV = 'EXTRA_IP_MANUAL.txt';
+const EXTRA_IP_REMOTE_KV = 'EXTRA_IP_REMOTE.txt';
+const EXTRA_IP_META_KV = 'EXTRA_IP_META.json';
+
+async function 获取额外IP公开TOKEN(hostname, userID) {
+	return await MD5MD5(hostname + userID + '@extra_ips');
+}
+
+function 解析额外IP行(文本) {
+	if (!文本 || !String(文本).trim()) return [];
+	return String(文本).split(/[\r\n]+/).map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+}
+
+async function 合并并保存额外IP(env, 手动文本, 远程文本) {
+	const 合并 = [...new Set([...解析额外IP行(手动文本), ...解析额外IP行(远程文本)])];
+	await env.KV.put(EXTRA_IP_KV, 合并.join('\n'));
+	return 合并;
+}
+
+async function 从URL拉取额外IP(来源URL) {
+	const res = await fetch(来源URL, { headers: { 'User-Agent': 'edgetunnel-extra-ip-sync/1.0' } });
+	if (!res.ok) throw new Error(`拉取失败 HTTP ${res.status}`);
+	return await res.text();
+}
+
+async function 刷新额外IP来源(env, 强制 = false) {
+	const metaTxt = await env.KV.get(EXTRA_IP_META_KV);
+	if (!metaTxt) return { refreshed: false, reason: 'no_meta' };
+	const meta = JSON.parse(metaTxt);
+	if (!meta.sourceUrl) return { refreshed: false, reason: 'no_url' };
+	const intervalMs = (meta.intervalHours || 12) * 3600000;
+	if (!强制 && meta.lastFetch && Date.now() - meta.lastFetch < intervalMs) {
+		return { refreshed: false, reason: 'not_due', nextInMs: intervalMs - (Date.now() - meta.lastFetch) };
+	}
+	const remoteText = await 从URL拉取额外IP(meta.sourceUrl);
+	await env.KV.put(EXTRA_IP_REMOTE_KV, remoteText);
+	const manual = await env.KV.get(EXTRA_IP_MANUAL_KV) || '';
+	const 合并 = await 合并并保存额外IP(env, manual, remoteText);
+	meta.lastFetch = Date.now();
+	meta.lastCount = 合并.length;
+	await env.KV.put(EXTRA_IP_META_KV, JSON.stringify(meta));
+	return { refreshed: true, count: 合并.length, lastFetch: meta.lastFetch };
+}
+
+async function 自动刷新额外IP库(env) {
+	try {
+		return await 刷新额外IP来源(env, false);
+	} catch (e) {
+		console.error('[额外IP] 自动刷新失败:', e.message);
+		return { refreshed: false, error: e.message };
+	}
+}
+
+async function 获取额外IP列表(env, config_JSON) {
+	if (config_JSON?.额外IP库?.启用 === false) return [];
+	await 自动刷新额外IP库(env);
+	const txt = await env.KV.get(EXTRA_IP_KV);
+	return txt ? 解析额外IP行(txt) : [];
+}
 
 async function 获取静态管理页面(env, request, 远程路径) {
 	const 本地映射 = [
@@ -204,7 +265,13 @@ export default {
 
 					config_JSON = await 读取config_JSON(env, host, userID, UA);
 
-					if (访问路径 === 'admin/init') {// 重置配置为默认值
+					ctx.waitUntil(自动刷新额外IP库(env));
+
+					if (访问路径 === 'admin/init')
+
+
+
+					 {// 重置配置为默认值
 						try {
 							config_JSON = await 读取config_JSON(env, host, userID, UA, true);
 							ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Init_Config', config_JSON));
@@ -281,6 +348,48 @@ export default {
 								console.error('保存自定义IP失败:', error);
 								return new Response(JSON.stringify({ error: '保存自定义IP失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 							}
+						
+						} else if (区分大小写访问路径 === 'admin/extra-ips.txt') {
+							try {
+								const manualIPs = await request.text();
+								await env.KV.put(EXTRA_IP_MANUAL_KV, manualIPs);
+								const remote = await env.KV.get(EXTRA_IP_REMOTE_KV) || '';
+								const 合并 = await 合并并保存额外IP(env, manualIPs, remote);
+								ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Save_Extra_IPs', config_JSON));
+								const shareToken = await 获取额外IP公开TOKEN(host, userID);
+								return new Response(JSON.stringify({
+									success: true,
+									message: '额外IP已保存',
+									count: 合并.length,
+									shareUrl: `${url.protocol}//${url.host}/extra-ips.txt?token=${shareToken}`,
+								}), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							} catch (error) {
+								return new Response(JSON.stringify({ error: '保存额外IP失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							}
+						} else if (区分大小写访问路径 === 'admin/extra-ips-meta.json') {
+							try {
+								const body = await request.json();
+								const metaTxt = await env.KV.get(EXTRA_IP_META_KV);
+								const meta = metaTxt ? JSON.parse(metaTxt) : { intervalHours: 12 };
+								if (body.sourceUrl !== undefined) meta.sourceUrl = body.sourceUrl ? String(body.sourceUrl).trim() : null;
+								if (body.intervalHours !== undefined) meta.intervalHours = Math.max(1, parseInt(body.intervalHours, 10) || 12);
+								if (body.enabled !== undefined) {
+									config_JSON.额外IP库 = { ...config_JSON.额外IP库, 启用: !!body.enabled };
+									await env.KV.put('config.json', JSON.stringify(config_JSON, null, 2));
+								}
+								await env.KV.put(EXTRA_IP_META_KV, JSON.stringify(meta));
+								if (meta.sourceUrl) await 刷新额外IP来源(env, true);
+								return new Response(JSON.stringify({ success: true, meta }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							} catch (error) {
+								return new Response(JSON.stringify({ error: '保存额外IP设置失败: ' + error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							}
+						} else if (区分大小写访问路径 === 'admin/extra-ips/refresh') {
+							try {
+								const result = await 刷新额外IP来源(env, true);
+								return new Response(JSON.stringify({ success: true, ...result }), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							} catch (error) {
+								return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
+							}
 						} else return new Response(JSON.stringify({ error: '不支持的POST请求路径' }), { status: 404, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					} else if (访问路径 === 'admin/config.json') {// 处理 admin/config.json 请求，返回JSON
 						return new Response(JSON.stringify(config_JSON, null, 2), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -288,12 +397,32 @@ export default {
 						let 本地优选IP = await env.KV.get('ADD.txt') || 'null';
 						if (本地优选IP == 'null') 本地优选IP = (await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量, config_JSON.优选订阅生成.本地IP库.指定端口))[1];
 						return new Response(本地优选IP, { status: 200, headers: { 'Content-Type': 'text/plain;charset=utf-8', 'asn': request.cf.asn } });
+
+					} else if (区分大小写访问路径 === 'admin/extra-ips.txt') {
+						const manual = await env.KV.get(EXTRA_IP_MANUAL_KV) || '';
+						const shareToken = await 获取额外IP公开TOKEN(host, userID);
+						const metaTxt = await env.KV.get(EXTRA_IP_META_KV);
+						const meta = metaTxt ? JSON.parse(metaTxt) : { intervalHours: 12 };
+						return new Response(JSON.stringify({
+							manual,
+							merged: await env.KV.get(EXTRA_IP_KV) || '',
+							meta,
+							shareUrl: `${url.protocol}//${url.host}/extra-ips.txt?token=${shareToken}`,
+						}, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					} else if (访问路径 === 'admin/cf.json') {// CF配置文件
 						return new Response(JSON.stringify(request.cf, null, 2), { status: 200, headers: { 'Content-Type': 'application/json;charset=utf-8' } });
 					}
 
 					ctx.waitUntil(请求日志记录(env, request, 访问IP, 'Admin_Login', config_JSON));
 					return 获取静态管理页面(env, request, '/admin' + url.search);
+
+				} else if (访问路径 === 'extra-ips.txt') {
+					const 请求TOKEN = url.searchParams.get('token');
+					const 公开TOKEN = await 获取额外IP公开TOKEN(host, userID);
+					if (请求TOKEN !== 公开TOKEN) return new Response('Forbidden', { status: 403, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+					await 自动刷新额外IP库(env);
+					const 内容 = await env.KV.get(EXTRA_IP_KV) || '';
+					return new Response(内容, { status: 200, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
 				} else if (访问路径 === 'logout' || uuidRegex.test(访问路径)) {//清除cookie并跳转到登录页面
 					const 响应 = new Response('重定向中...', { status: 302, headers: { 'Location': '/login' } });
 					响应.headers.set('Set-Cookie', 'auth=; Path=/; Max-Age=0; HttpOnly');
@@ -351,11 +480,13 @@ export default {
 							let 完整优选IP = [], 其他节点LINK = '', 反代IP池 = [];
 
 							if (!url.searchParams.has('sub') && config_JSON.优选订阅生成.local) { // 本地生成订阅
-								const 完整优选列表 = config_JSON.优选订阅生成.本地IP库.随机IP ? (
+								let 完整优选列表 = config_JSON.优选订阅生成.本地IP库.随机IP ? (
 									await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量, config_JSON.优选订阅生成.本地IP库.指定端口)
 								)[0] : await env.KV.get('ADD.txt') ? await 整理成数组(await env.KV.get('ADD.txt')) : (
 									await 生成随机IP(request, config_JSON.优选订阅生成.本地IP库.随机数量, config_JSON.优选订阅生成.本地IP库.指定端口)
 								)[0];
+								const 额外IP列表 = await 获取额外IP列表(env, config_JSON);
+								if (额外IP列表.length) 完整优选列表 = [...new Set([...完整优选列表, ...额外IP列表])];
 								const 优选API = [], 优选IP = [], 其他节点 = [];
 								for (const 元素 of 完整优选列表) {
 									if (元素.toLowerCase().startsWith('sub://')) {
@@ -523,7 +654,10 @@ export default {
 			return 反代响应;
 		} catch (error) { }
 		return new Response(await nginx(), { status: 200, headers: { 'Content-Type': 'text/html; charset=UTF-8' } });
-	}
+	},
+	async scheduled(event, env, ctx) {
+		ctx.waitUntil(自动刷新额外IP库(env));
+	},
 };
 ///////////////////////////////////////////////////////////////////////XHTTP传输数据///////////////////////////////////////////////
 async function 处理XHTTP请求(request, yourUUID) {
@@ -4908,7 +5042,19 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 			SUBUpdateTime: 3, // 订阅更新时间（小时）
 			TOKEN: await MD5MD5(hostname + userID),
 		},
-		订阅转换配置: {
+		订阅转换配置:
+
+		额外IP库: {
+
+			启用: true,
+
+			来源URL: null,
+
+			自动刷新间隔小时: 12,
+
+		},
+
+ {
 			SUBAPI: "https://SUBAPI.cmliussss.net",
 			SUBCONFIG: "https://raw.githubusercontent.com/cmliu/ACL4SSR/refs/heads/main/Clash/config/ACL4SSR_Online_Mini_MultiMode_CF.ini",
 			SUBEMOJI: false,
@@ -5054,6 +5200,22 @@ async function 读取config_JSON(env, hostname, userID, UA = "Mozilla/5.0", 重�
 		? `${config_JSON.协议类型}://${btoa(config_JSON.SS.加密方式 + ':' + userID)}@${host}:${config_JSON.SS.TLS ? '443' : '80'}?plugin=v2${encodeURIComponent(`ray-plugin;mode=websocket;host=${host};path=${((config_JSON.完整节点路径.includes('?') ? config_JSON.完整节点路径.replace('?', '?enc=' + config_JSON.SS.加密方式 + '&') : (config_JSON.完整节点路径 + '?enc=' + config_JSON.SS.加密方式)) + (config_JSON.SS.TLS ? ';tls' : ''))};mux=0`) + ECHLINK参数}#${encodeURIComponent(config_JSON.优选订阅生成.SUBNAME)}`
 		: `${config_JSON.协议类型}://${userID}@${host}:443?security=tls&type=${传输协议 + ECHLINK参数}&${域名字段名}=${host}&fp=${config_JSON.Fingerprint}&sni=${host}&${路径字段名}=${encodeURIComponent(传输路径参数值) + TLS分片参数}&encryption=none${config_JSON.跳过证书验证 ? '&insecure=1&allowInsecure=1' : ''}#${encodeURIComponent(config_JSON.优选订阅生成.SUBNAME)}`;
 	config_JSON.优选订阅生成.TOKEN = await MD5MD5(hostname + userID);
+
+
+	if (!config_JSON.额外IP库) config_JSON.额外IP库 = { 启用: true, 来源URL: null, 自动刷新间隔小时: 12 };
+	if (config_JSON.额外IP库.启用 === undefined) config_JSON.额外IP库.启用 = true;
+	if (!config_JSON.额外IP库.自动刷新间隔小时) config_JSON.额外IP库.自动刷新间隔小时 = 12;
+	const 额外IP公开TOKEN = await 获取额外IP公开TOKEN(hostname, userID);
+	config_JSON.额外IP库.分享链接 = `https://${host}/extra-ips.txt?token=${额外IP公开TOKEN}`;
+	try {
+		const metaTxt = await env.KV.get(EXTRA_IP_META_KV);
+		if (metaTxt) {
+			const meta = JSON.parse(metaTxt);
+			config_JSON.额外IP库.来源URL = meta.sourceUrl || config_JSON.额外IP库.来源URL;
+			config_JSON.额外IP库.上次刷新 = meta.lastFetch || null;
+			config_JSON.额外IP库.上次数量 = meta.lastCount || 0;
+		}
+	} catch (e) { }
 
 	const 初始化TG_JSON = { BotToken: null, ChatID: null };
 	config_JSON.TG = { 启用: config_JSON.TG.启用 ? config_JSON.TG.启用 : false, ...初始化TG_JSON };

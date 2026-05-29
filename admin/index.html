@@ -8096,6 +8096,36 @@
             </div>
 
             <!-- 模块2: ویرایشاشتراک生成 -->
+            
+            <div class="module" id="extraIpModule">
+                <div class="module-title non-collapsible">➕ IPهای اضافی (همراه با تصادفی)</div>
+                <div class="module-content">
+                    <p style="margin-bottom:12px;opacity:.85;line-height:1.6">
+                        هر خط <code dir="ltr">IP:PORT</code> — با IPهای تصادفی <b>جمع</b> می‌شود (۱۰+۶=۱۶).
+                        «اشتراک سفارشی» پایین‌تر برای جایگزینی کامل لیست است.
+                    </p>
+                    <div class="form-group">
+                        <label for="extraIPs">لیست IP دستی</label>
+                        <textarea id="extraIPs" rows="8" dir="ltr" style="font-family:monospace;width:100%"
+                            placeholder="94.182.108.17:40443&#10;94.183.153.138:40443"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="extraIpSourceUrl">لینک منبع (هر ۱۲ ساعت خودکار)</label>
+                        <input type="url" id="extraIpSourceUrl" dir="ltr" style="width:100%" placeholder="https://domain/extra-ips.txt?token=...">
+                    </div>
+                    <div class="form-group">
+                        <label>لینک اشتراک‌گذاری</label>
+                        <div style="display:flex;gap:8px;flex-wrap:wrap">
+                            <input type="text" id="extraIpShareUrl" readonly dir="ltr" style="flex:1;min-width:200px;font-family:monospace">
+                            <button type="button" class="btn btn-secondary" onclick="copyExtraShareUrl()">کپی لینک</button>
+                            <button type="button" class="btn btn-secondary" onclick="refreshExtraIpsFromUrl()">بررسی دستی</button>
+                        </div>
+                        <small id="extraIpLastFetch" style="display:block;margin-top:8px;opacity:.7"></small>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="saveExtraIps()">ذخیره IPهای اضافی</button>
+                </div>
+            </div>
+
             <div class="module" id="preferredSubscriptionModule">
                 <div class="module-title non-collapsible">
                     ⚡️ تولید اشتراک بهینه
@@ -11783,6 +11813,7 @@ vless://7b102311-43fd-4e8f-977e-8090623c101d@edt-pages.github.io:443?security=tl
                 currentConfig = await response.json();
                 originalConfig = JSON.parse(JSON.stringify(currentConfig));
                 renderUI();
+                loadExtraIpsPanel();
                 loadVersionByUUID(currentConfig.UUID);
                 // 设置网页标题
                 document.title = `${currentConfig.优选订阅生成?.SUBNAME || 'edgetunnel'} 设置页面 - 管理后台`;
@@ -21119,6 +21150,45 @@ vless://7b102311-43fd-4e8f-977e-8090623c101d@edt-pages.github.io:443?security=tl
 
             // 显示确认提示
             showToast('🎉 24小时内不会再提示', 'info');
+        }
+
+    
+        async function loadExtraIpsPanel() {
+            try {
+                const res = await fetch('/admin/extra-ips.txt?_t=' + Date.now());
+                if (!res.ok) return;
+                const data = await res.json();
+                if (document.getElementById('extraIPs')) document.getElementById('extraIPs').value = data.manual || '';
+                if (document.getElementById('extraIpSourceUrl')) document.getElementById('extraIpSourceUrl').value = data.meta?.sourceUrl || '';
+                if (document.getElementById('extraIpShareUrl')) document.getElementById('extraIpShareUrl').value = data.shareUrl || '';
+                if (document.getElementById('extraIpLastFetch') && data.meta?.lastFetch)
+                    document.getElementById('extraIpLastFetch').textContent = 'آخرین بررسی: ' + new Date(data.meta.lastFetch).toLocaleString('fa-IR');
+            } catch (e) {}
+        }
+        async function saveExtraIps() {
+            const manual = document.getElementById('extraIPs')?.value || '';
+            const sourceUrl = document.getElementById('extraIpSourceUrl')?.value?.trim() || '';
+            try {
+                const r1 = await fetch('/admin/extra-ips.txt', { method: 'POST', body: manual });
+                const j1 = await r1.json();
+                if (!r1.ok) throw new Error(j1.error || 'err');
+                await fetch('/admin/extra-ips-meta.json', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sourceUrl, intervalHours: 12 }) });
+                if (j1.shareUrl && document.getElementById('extraIpShareUrl')) document.getElementById('extraIpShareUrl').value = j1.shareUrl;
+                showToast('ذخیره شد: ' + (j1.count || 0) + ' IP', 'success');
+            } catch (e) { showToast('خطا: ' + e.message, 'error'); }
+        }
+        async function refreshExtraIpsFromUrl() {
+            try {
+                const res = await fetch('/admin/extra-ips/refresh', { method: 'POST' });
+                const data = await res.json();
+                showToast(data.refreshed ? ('به‌روز: ' + (data.count || 0)) : 'زود است یا لینک خالی', data.refreshed ? 'success' : 'info');
+                await loadExtraIpsPanel();
+            } catch (e) { showToast(e.message, 'error'); }
+        }
+        function copyExtraShareUrl() {
+            const el = document.getElementById('extraIpShareUrl');
+            if (!el?.value) return showToast('لینکی نیست', 'error');
+            navigator.clipboard.writeText(el.value).then(() => showToast('کپی شد', 'success'));
         }
 
     </script>
