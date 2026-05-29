@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build Persian (fa) admin and login pages with extra-IP panel."""
+"""ترجمهٔ پنل admin/login از چینی به فارسی — بدون تغییر منطق."""
 from pathlib import Path
 import re
 
@@ -9,47 +9,61 @@ SRC_LOGIN = ROOT / "pages" / "login.html"
 OUT_ADMIN = ROOT / "admin" / "index.html"
 OUT_LOGIN = ROOT / "login.html"
 
+# ترتیب: رشته‌های بلندتر اول
 TRANSLATIONS = [
-    ("⚡️ 优选订阅生成", "⚡️ تولید اشتراک بهینه"),
-    ("设置页面", "صفحه تنظیمات"),
-    (" 设置页面 - 管理后台", " - پنل مدیریت"),
-    ("消息通知设置", "اعلان‌ها"),
-    ("订阅转换配置", "تبدیل اشتراک"),
-    ("Cloudflare CDN 访问设置", "تنظیمات CDN کلادفلر"),
-    ("Encrypted Client Hello", "رمزنگاری ECH"),
-
     ("zh-CN", "fa"),
     ('lang="zh-CN"', 'lang="fa" dir="rtl"'),
     ("管理后台", "پنل مدیریت"),
+    ("登录设置页面", "ورود به پنل"),
     ("加载中...", "در حال بارگذاری..."),
+    ("正在加载...", "در حال بارگذاری..."),
     ("我是小白！我想简单点！", "حالت ساده"),
     ("重置配置", "بازنشانی تنظیمات"),
     ("退出登录", "خروج"),
     ("Workers/Pages 请求使用情况", "مصرف درخواست Workers/Pages"),
+    ("请求使用进度", "پیشرفت مصرف درخواست"),
     ("Workers 请求", "درخواست Workers"),
     ("Pages 请求", "درخواست Pages"),
     ("日配额", "سهمیه روزانه"),
-    ("每日请求数重置清零", "زمان تا بازنشانی سهمیه روزانه"),
-    ("当前网络信息", "اطلاعات شبکه فعلی"),
-    ("国内测试", "تست داخل کشور"),
+    ("每日请求数重置清零", "بازنشانی سهمیه روزانه"),
+    ("距离重置还有", "تا بازنشانی"),
+    ("小时", "ساعت"),
+    ("分钟", "دقیقه"),
+    ("秒", "ثانیه"),
+    ("北京时间 (UTC+8) 8:00重置，今日使用情况总计", "تهران/UTC+3 — مجموع امروز"),
+    ("当前网络信息", "اطلاعات شبکه"),
+    ("国内测试", "تست داخل"),
     ("国外测试", "تست خارج"),
     ("墙外测试", "تست خارج از فیلتر"),
+    ("您访问国内站点所使用的IP", "IP دسترسی به سایت‌های داخل"),
+    ("您访问没有被封的国外站点所使用的IP", "IP دسترسی به سایت‌های خارج فیلترنشده"),
+    ("您访问CFCDN站点所使用的落地IP", "IP پروکسی Cloudflare CDN"),
+    ("您访问墙外站点所使用的IP", "IP دسترسی به سایت‌های خارج"),
+    ("是由您梯子的", "توسط قوانین مسیریابی"),
+    ("分流规则", "مسیریابی"),
+    ("决定的", "تعیین می‌شود"),
+    ("是由您的", "توسط"),
+    ("优选IP", "IP بهینه"),
+    ("决定的，而", "است و"),
+    ("是由您的 PROXYIP 决定的", "توسط PROXYIP تعیین می‌شود"),
     ("获取节点链接", "دریافت لینک نود"),
     ("节点链接格式", "فرمت لینک نود"),
     ("复制节点", "کپی نود"),
+    ("二维码", "QR"),
     ("自适应订阅", "اشتراک خودکار"),
     ("复制订阅", "کپی اشتراک"),
     ("Base64订阅", "اشتراک Base64"),
     ("Clash订阅", "اشتراک Clash"),
     ("SingBox订阅", "اشتراک SingBox"),
-    ("优选订阅模式", "حالت اشتراک بهینه"),
-    ("优选订阅生成器（抄作业，直接使用大佬优选好的结果）", "مولد اشتراک (استفاده از لیست آماده دیگران)"),
+    ("⚡️ 优选订阅生成", "⚡️ تولید اشتراک بهینه"),
+    ("优选订阅模式", "حالت اشتراک"),
+    ("优选订阅生成器（抄作业，直接使用大佬优选好的结果）", "مولد اشتراک (استفاده از لیست آماده)"),
     ("随机优选（根据订阅时的网络自动下发对应网络的官方优选）", "انتخاب تصادفی (بر اساس شبکه شما)"),
     ("自定义订阅（支持汇聚订阅）", "اشتراک سفارشی (ادغام چند منبع)"),
     ("随机优选数量", "تعداد IP تصادفی"),
     ("指定优选端口", "پورت ثابت"),
     ("随机端口", "پورت تصادفی"),
-    ("自定义优选地址", "آدرس‌های بهینه سفارشی"),
+    ("自定义优选地址", "آدرس IP سفارشی"),
     ("优选订阅生成器", "آدرس مولد اشتراک"),
     ("在线优选", "بهینه‌سازی آنلاین"),
     ("订阅接口", "رابط API"),
@@ -58,164 +72,191 @@ TRANSLATIONS = [
     ("保存", "ذخیره"),
     ("详细配置信息", "تنظیمات پیشرفته"),
     ("订阅名称", "نام اشتراک"),
-    ("节点协议", "پروتکل"),
+    ("节点协议", "پروتکل نود"),
     ("加密方式", "روش رمزنگاری"),
+    ("CPU消耗少速度快", "سریع، مصرف CPU کم"),
+    ("在性能不佳的老设备上，加解密速度会变慢", "روی دستگاه‌های قدیمی کندتر است"),
+    ("启用（开启TLS，速度不会比VLESS/Trojan更快，因为Shadowsocks自带AEAD加密）", "فعال (TLS؛ Shadowsocks خودش رمز دارد)"),
+    ("关闭", "غیرفعال"),
     ("传输协议", "پروتکل انتقال"),
+    ("稳！", "پایدار"),
+    ("大量消耗请求数！", "مصرف زیاد درخواست!"),
+    ("封号警告，请求已被CDN识别！需等待上下游更新！", "هشدار مسدودسازی — منتظر به‌روزرسانی باشید"),
+    ("花里胡笑！", "پیشرفته"),
+    ("gRPC模式", "حالت gRPC"),
+    ("普通模式", "حالت عادی"),
+    ("并发模式", "حالت همزمان"),
+    ("获取当前UA", "دریافت UA فعلی"),
+    ("指纹伪装", "جعل اثر انگشت"),
+    ("支持ECH", "پشتیبانی ECH"),
     ("跳过证书验证", "نادیده گرفتن گواهی"),
     ("随机伪装路径", "مسیر تصادفی"),
+    ("启用0-RTT(ed=2560)", "فعال‌سازی 0-RTT (ed=2560)"),
+    ("启用分片(Shadowrocket)", "فعال‌سازی قطعه‌بندی (Shadowrocket)"),
+    ("启用分片(Happ)", "فعال‌سازی قطعه‌بندی (Happ)"),
+    ("ECH 设置", "تنظیمات ECH"),
+    ("启用", "فعال"),
+    ("EchConfig DNS服务", "سرویس DNS برای ECH"),
+    ("国内DNS需搭配设置ECH解析域名，是否可用需自行验证", "DNS داخلی — قابلیت را خودتان تست کنید"),
+    ("小白推荐选这个！！！", "پیشنهاد مبتدی"),
+    ("EchConfig 解析域名", "دامنه resolve برای ECH"),
+    ("自动获取（使用节点的伪装域名解析 EchConfig）", "خودکار (دامنه جعل‌شده نود)"),
+    ("自定义", "سفارشی"),
+    ("为什么需要ECH？ECH又是什么？", "ECH چیست و چرا لازم است؟"),
+    ("Cloudflare CDN 访问设置", "تنظیمات CDN کلادفلر"),
+    ("反代模式", "حالت پروکسی معکوس"),
+    ("其他代理", "سایر پروکسی‌ها"),
+    ("启用自动获取", "دریافت خودکار"),
+    ("代理协议", "پروتکل پروکسی"),
+    ("启用全局代理", "پروکسی سراسری"),
+    ("为什么需要反代？PROXYIP又是什么？", "PROXYIP و پروکسی معکوس چیست؟"),
+    ("路径模板配置", "قالب مسیر"),
+    ("获取更多 PROXYIP", "دریافت PROXYIP بیشتر"),
+    ("获取更多 SOCKS5", "دریافت SOCKS5 بیشتر"),
+    ("获取更多 HTTP", "دریافت HTTP بیشتر"),
+    ("获取更多 HTTPS", "دریافت HTTPS بیشتر"),
+    ("订阅转换配置", "تبدیل اشتراک"),
+    ("订阅转换后端", "سرور تبدیل اشتراک"),
+    ("订阅转换配置文件", "فایل پیکربندی تبدیل"),
+    ("消息通知设置", "اعلان‌ها"),
+    ("Telegram Bot 通知设置", "ربات تلگرام"),
+    ("参数配置", "تنظیم پارامترها"),
+    ("清除配置", "پاک کردن تنظیمات"),
+    ("Cloudflare Workers/Pages 可用请求数统计", "آمار درخواست Workers/Pages"),
     ("查看操作日志", "مشاهده لاگ"),
+    ("因为KV空间有限，所以只保留4MB的操作日志，当日志大小超过该容量会自动清理最老的日志记录。", "حداکثر ۴ مگابایت لاگ در KV — قدیمی‌ترین رکوردها حذف می‌شوند."),
     ("全部日志", "همه لاگ‌ها"),
-    ("登录设置页面", "ورود به پنل"),
+    ("设置页面 - 管理后台", "تنظیمات — پنل مدیریت"),
+    ("设置页面", "صفحه تنظیمات"),
     ("密码", "رمز عبور"),
     ("登录", "ورود"),
-    ("正在加载...", "در حال بارگذاری..."),
-    ("保存自定义IP失败", "ذخیره IP سفارشی ناموفق بود"),
-    ("加载自定义IP失败", "بارگذاری IP سفارشی ناموفق بود"),
+    ("请输入密码", "رمز عبور را وارد کنید"),
+    ("登录失败", "ورود ناموفق"),
+    ("登录成功", "ورود موفق"),
+    ("配置已保存", "تنظیمات ذخیره شد"),
+    ("配置已重置为默认值", "تنظیمات به پیش‌فرض بازنشانی شد"),
+    ("保存配置失败", "ذخیره تنظیمات ناموفق"),
+    ("加载配置失败", "بارگذاری تنظیمات ناموفق"),
+    ("保存自定义IP失败", "ذخیره IP سفارشی ناموفق"),
+    ("加载自定义IP失败", "بارگذاری IP سفارشی ناموفق"),
+    ("自定义IP已保存", "IP سفارشی ذخیره شد"),
     ("随机优选数量不能为空", "تعداد IP تصادفی نمی‌تواند خالی باشد"),
     ("自定义优选地址不能为空", "آدرس سفارشی نمی‌تواند خالی باشد"),
-    ("设置页面 - 管理后台", "تنظیمات - پنل مدیریت"),
+    ("优选订阅生成器地址不能为空", "آدرس مولد اشتراک نمی‌تواند خالی باشد"),
+    ("查询请求量失败", "دریافت آمار درخواست ناموفق"),
+    ("验证优选API失败", "اعتبارسنجی API ناموفق"),
+    ("缺少代理参数", "پارامتر پروکسی وجود ندارد"),
+    ("重定向中...", "در حال انتقال..."),
+    ("注意：", "توجه:"),
+    ("每行一个地址，如：地址:端口#备注", "هر خط: آدرس:پورت#توضیح"),
+    ("IPv6地址需要用中括号括起来", "IPv6 داخل براکت"),
+    ("端口不写，默认为 443 端口", "پورت پیش‌فرض 443"),
+    ("示例：", "مثال:"),
+    ("优选域名", "دامنه بهینه"),
+    ("漏网之鱼", "خارج از فیلتر"),
+    ("重定向中", "در حال انتقال"),
+    ("复制", "کپی"),
+    ("成功", "موفق"),
+    ("失败", "ناموفق"),
+    ("错误", "خطا"),
+    ("确定", "تأیید"),
+    ("删除", "حذف"),
+    ("编辑", "ویرایش"),
+    ("添加", "افزودن"),
+    ("搜索", "جستجو"),
+    ("刷新", "بروزرسانی"),
+    ("下载", "دانلود"),
+    ("上传", "بارگذاری"),
+    ("版本", "نسخه"),
+    ("提示", "راهنما"),
+    ("警告", "هشدار"),
+    ("信息", "اطلاعات"),
+    ("暂无数据", "داده‌ای نیست"),
+    ("操作", "عملیات"),
+    ("时间", "زمان"),
+    ("类型", "نوع"),
+    ("状态", "وضعیت"),
+    ("描述", "توضیح"),
+    ("备注", "توضیح"),
+    ("地址", "آدرس"),
+    ("端口", "پورت"),
+    ("域名", "دامنه"),
+    ("协议", "پروتکل"),
+    ("配置", "تنظیمات"),
+    ("订阅", "اشتراک"),
+    ("节点", "نود"),
+    ("代理", "پروکسی"),
+    ("请求", "درخواست"),
+    ("日志", "لاگ"),
+    ("保存失败", "ذخیره ناموفق"),
+    ("加载失败", "بارگذاری ناموفق"),
+    ("不能为空", "نمی‌تواند خالی باشد"),
+    ("已保存", "ذخیره شد"),
+    ("已删除", "حذف شد"),
+    ("已复制", "کپی شد"),
+    ("复制成功", "کپی شد"),
+    ("复制失败", "کپی ناموفق"),
 ]
 
-EXTRA_IP_HTML = '''
-                    <div class="module" id="extraIpModule">
-                        <div class="module-title non-collapsible">➕ IPهای اضافی (همراه با لیست تصادفی)</div>
-                        <div class="module-content">
-                            <p class="hint-text" style="margin-bottom:12px;opacity:.85;line-height:1.6">
-                                هر خط یک آدرس مثل <code dir="ltr">94.182.108.17:40443</code>.
-                                این IPها <strong>به‌علاوه</strong> IPهای تصادفی در اشتراک قرار می‌گیرند (مثلاً ۱۰ تصادفی + ۶ دستی = ۱۶ نود).
-                            </p>
-                            <div class="form-group">
-                                <label for="extraIPs">لیست IP دستی</label>
-                                <textarea id="extraIPs" rows="8" dir="ltr" style="font-family:monospace;width:100%"
-                                    placeholder="94.182.108.17:40443&#10;94.183.153.138:40443"
-                                    onchange="markModified('extra')"></textarea>
-                            </div>
-                            <div class="form-group">
-                                <label for="extraIpSourceUrl">یا لینک منبع IP (هر ۱۲ ساعت خودکار بررسی می‌شود)</label>
-                                <input type="url" id="extraIpSourceUrl" dir="ltr" class="full-width" placeholder="https://example.com/extra-ips.txt?token=..."
-                                    onchange="markModified('extra')">
-                            </div>
-                            <div class="form-group">
-                                <label>لینک اشتراک‌گذاری (با تغییر IP دستی به‌روز می‌شود)</label>
-                                <div style="display:flex;gap:8px;flex-wrap:wrap">
-                                    <input type="text" id="extraIpShareUrl" readonly dir="ltr" style="flex:1;min-width:200px;font-family:monospace">
-                                    <button type="button" class="btn btn-secondary" onclick="copyExtraShareUrl()">کپی لینک</button>
-                                    <button type="button" class="btn btn-secondary" onclick="refreshExtraIpsFromUrl()">بررسی دستی لینک</button>
-                                </div>
-                                <small id="extraIpLastFetch" style="display:block;margin-top:8px;opacity:.7"></small>
-                            </div>
-                            <div class="module-footer">
-                                <div class="btn-group">
-                                    <button type="button" class="btn btn-primary" onclick="saveExtraIps()" id="saveExtraBtn">ذخیره IPهای اضافی</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-'''
+# پیام‌های toast در اسکریپت — فقط رشته‌های داخل کوتیشن چینی
+TOAST_TRANSLATIONS = [
+    ("加载配置失败", "بارگذاری تنظیمات ناموفق"),
+    ("保存配置失败", "ذخیره تنظیمات ناموفق"),
+    ("配置已保存", "تنظیمات ذخیره شد"),
+    ("保存自定义IP失败", "ذخیره IP ناموفق"),
+    ("加载自定义IP失败", "بارگذاری IP ناموفق"),
+    ("随机优选数量不能为空", "تعداد IP خالی است"),
+    ("自定义优选地址不能为空", "آدرس خالی است"),
+    ("优选订阅生成器地址不能为空", "آدرس مولد خالی است"),
+    ("验证成功", "اعتبارسنجی موفق"),
+    ("验证失败", "اعتبارسنجی ناموفق"),
+    ("代理检测成功", "تست پروکسی موفق"),
+    ("代理检测失败", "تست پروکسی ناموفق"),
+    ("已重置", "بازنشانی شد"),
+    ("操作成功", "عملیات موفق"),
+    ("操作失败", "عملیات ناموفق"),
+    ("请输入", "وارد کنید"),
+    ("请先", "ابتدا"),
+    ("无法", "امکان‌پذیر نیست"),
+    ("无效", "نامعتبر"),
+]
 
-EXTRA_IP_JS = r'''
-        async function loadExtraIpsPanel() {
-            try {
-                const res = await fetch('/admin/extra-ips.txt?_t=' + Date.now());
-                if (!res.ok) return;
-                const data = await res.json();
-                const ta = document.getElementById('extraIPs');
-                const urlIn = document.getElementById('extraIpSourceUrl');
-                const share = document.getElementById('extraIpShareUrl');
-                const info = document.getElementById('extraIpLastFetch');
-                if (ta) ta.value = data.manual || '';
-                if (urlIn) urlIn.value = data.meta?.sourceUrl || '';
-                if (share) share.value = data.shareUrl || (currentConfig?.额外IP库?.分享链接 || '');
-                if (info && data.meta?.lastFetch) {
-                    info.textContent = 'آخرین بررسی لینک: ' + new Date(data.meta.lastFetch).toLocaleString('fa-IR');
-                }
-            } catch (e) { console.warn('loadExtraIps', e); }
-        }
 
-        async function saveExtraIps() {
-            const manual = document.getElementById('extraIPs')?.value || '';
-            const sourceUrl = document.getElementById('extraIpSourceUrl')?.value?.trim() || '';
-            try {
-                const r1 = await fetch('/admin/extra-ips.txt', { method: 'POST', body: manual });
-                const j1 = await r1.json();
-                if (!r1.ok) throw new Error(j1.error || 'save failed');
-                await fetch('/admin/extra-ips-meta.json', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sourceUrl, intervalHours: 12 })
-                });
-                if (j1.shareUrl) {
-                    const share = document.getElementById('extraIpShareUrl');
-                    if (share) share.value = j1.shareUrl;
-                }
-                showToast('IPهای اضافی ذخیره شد (' + (j1.count || 0) + ' مورد)', 'success');
-                document.getElementById('saveExtraBtn').disabled = true;
-            } catch (e) {
-                showToast('خطا: ' + e.message, 'error');
-            }
-        }
-
-        async function refreshExtraIpsFromUrl() {
-            try {
-                const res = await fetch('/admin/extra-ips/refresh', { method: 'POST' });
-                const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'refresh failed');
-                showToast(data.refreshed ? ('به‌روز شد: ' + (data.count || 0) + ' IP') : ('هنوز زود است یا لینکی تنظیم نشده'), data.refreshed ? 'success' : 'info');
-                await loadExtraIpsPanel();
-            } catch (e) {
-                showToast('بررسی لینک ناموفق: ' + e.message, 'error');
-            }
-        }
-
-        function copyExtraShareUrl() {
-            const el = document.getElementById('extraIpShareUrl');
-            if (!el?.value) return showToast('لینکی وجود ندارد', 'error');
-            navigator.clipboard.writeText(el.value).then(() => showToast('لینک کپی شد', 'success'));
-        }
-'''
-
-def translate(text: str) -> str:
-    """Translate UI strings only — skip <script> blocks to preserve config keys."""
-    parts = re.split(r"(<script[\s\S]*?</script>)", text, flags=re.IGNORECASE)
+def translate_html(html: str) -> str:
+    parts = re.split(r"(<script[\s\S]*?</script>)", html, flags=re.IGNORECASE)
     out = []
     for i, part in enumerate(parts):
         if i % 2 == 1:
-            out.append(part)
+            chunk = part
+            for old, new in sorted(TOAST_TRANSLATIONS, key=lambda x: -len(x[0])):
+                chunk = chunk.replace(f"'{old}'", f"'{new}'")
+                chunk = chunk.replace(f'"{old}"', f'"{new}"')
+            out.append(chunk)
         else:
             chunk = part
-            for old, new in TRANSLATIONS:
+            for old, new in sorted(TRANSLATIONS, key=lambda x: -len(x[0])):
                 chunk = chunk.replace(old, new)
             out.append(chunk)
     return "".join(out)
 
-def build_admin(html: str) -> str:
-    html = translate(html)
-    if 'id="extraIpModule"' not in html:
-        html = html.replace(
-            '<div class="module" id="preferredSubscriptionModule">',
-            EXTRA_IP_HTML + '\n            <div class="module" id="preferredSubscriptionModule">',
-            1,
-        )
-    if 'async function loadExtraIpsPanel' not in html:
-        html = html.replace('</script>\n</body>', EXTRA_IP_JS + '\n    </script>\n</body>', 1)
-        # hook loadConfig
-        html = html.replace(
-            'await loadCustomIPs();',
-            'await loadCustomIPs();\n                await loadExtraIpsPanel();',
-        )
+
+def strip_extra_ip_module(html: str) -> str:
+    html = re.sub(r'\s*<div class="module" id="extraIpModule">[\s\S]*?</div>\s*(?=<div class="module")', '\n', html, count=1)
+    html = re.sub(r'\s*async function loadExtraIpsPanel[\s\S]*?function copyExtraShareUrl[\s\S]*?\}\s*', '\n', html)
+    html = html.replace('loadExtraIpsPanel();\n                ', '')
+    html = html.replace('await loadExtraIpsPanel();\n', '')
     return html
 
-def build_login(html: str) -> str:
-    return translate(html)
 
 def main():
     OUT_ADMIN.parent.mkdir(parents=True, exist_ok=True)
-    admin = build_admin(SRC_ADMIN.read_text(encoding="utf-8-sig"))
+    admin = strip_extra_ip_module(translate_html(SRC_ADMIN.read_text(encoding="utf-8-sig")))
+    login = translate_html(SRC_LOGIN.read_text(encoding="utf-8-sig"))
     OUT_ADMIN.write_text(admin, encoding="utf-8")
-    login = build_login(SRC_LOGIN.read_text(encoding="utf-8-sig"))
     OUT_LOGIN.write_text(login, encoding="utf-8")
-    print(f"Wrote {OUT_ADMIN} ({len(admin)} bytes)")
-    print(f"Wrote {OUT_LOGIN} ({len(login)} bytes)")
+    print(f"admin: {OUT_ADMIN} ({len(admin)} bytes)")
+    print(f"login: {OUT_LOGIN} ({len(login)} bytes)")
+
 
 if __name__ == "__main__":
     main()
